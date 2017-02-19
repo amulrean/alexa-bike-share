@@ -1,7 +1,4 @@
-HelloWorldIntent say hello
-HelloWorldIntent say hello world
-HelloWorldIntent hello
-HelloWorldIntent say hi
-HelloWorldIntent say hi world
-HelloWorldIntent hi
-HelloWorldIntent how are you
+MyStationIntent station like
+MyStationIntent whats my stations status
+MyStationIntent station status
+MyStationIntent status
