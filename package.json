@@ -1,0 +1,14 @@
+{
+  "name": "alexa-bike-share",
+  "version": "1.0.0",
+  "description": "Alexa Capital Bike Share Skill",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "author": "Andrew Mulrean",
+  "license": "ISC",
+  "dependencies": {
+    "alexa-sdk": "^1.0.7"
+  }
+}
