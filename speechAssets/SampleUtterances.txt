@@ -2,3 +2,15 @@ MyStationIntent station like
 MyStationIntent whats my stations status
 MyStationIntent station status
 MyStationIntent status
+MyStationIntent my station
+MyStationIntent mine
+
+SearchIntent search
+
+AddressSearchIntent {address}
+AdminSearchIntent {admin}
+StateSearchIntent {state}
+
+AMAZON.StopIntent stop
+AMAZON.StopIntent off
+AMAZON.StopIntent shut up

@@ -4,13 +4,14 @@
   "description": "Alexa Capital Bike Share Skill",
   "main": "index.js",
   "scripts": {
-    "package": "mkdir dist && zip -r dist/upload ."
+    "zip": "rm -rf dist && mkdir dist && zip -r dist/upload ."
   },
   "author": "Andrew Mulrean",
   "license": "ISC",
   "dependencies": {
     "alexa-sdk": "^1.0.7",
     "capital-bike-share-js": "^1.2.0",
+    "geocoder": "^0.2.2",
     "lodash": "^4.17.4"
   }
 }
