@@ -18,13 +18,10 @@ AMAZON.StopIntent stop
 AMAZON.StopIntent off
 AMAZON.StopIntent shut up
 
-LocationSearchIntent {address}
-LocationSearchIntent {admin}
-LocationSearchIntent search {address}
+
+LocationSearchIntent near {admin}
 LocationSearchIntent search {admin}
-LocationSearchIntent search near {address}
 LocationSearchIntent search near {admin}
-LocationSearchIntent find {address}
 LocationSearchIntent find {admin}
 
 
