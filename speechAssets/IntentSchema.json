@@ -2,14 +2,12 @@
   "intents": [
     { "intent": "MyStationIntent", "slots": [] },
     { "intent": "SearchIntent", "slots": [] },
-    { "intent": "AddressSearchIntent", "slots": [{ "name": "address", "type": "AMAZON.PostalAddress" }] },
-    { "intent": "AdminSearchIntent", "slots": [{ "name": "admin", "type": "AMAZON.AdministrativeArea" }] },
-    { "intent": "StateSearchIntent", "slots": [{ "name": "state", "type": "AMAZON.US_STATE" }] },
-    { "intent": "AMAZON.YesIntent", "slots": [] },
-    { "intent": "AMAZON.NoIntent", "slots": [] },
+    { "intent": "LocationSearchIntent", "slots": [{ "name": "address", "type": "AMAZON.PostalAddress" }, { "name": "admin", "type": "AMAZON.AdministrativeArea" }] },
+    { "intent": "AMAZON.NextIntent", "slots": [] },
+    { "intent": "AMAZON.PreviousIntent", "slots": [] },
+    { "intent": "AMAZON.RepeatIntent", "slots": [] },
     { "intent": "AMAZON.HelpIntent", "slots": [] },
     { "intent": "AMAZON.StopIntent", "slots": [] },
-    { "intent": "AMAZON.CancelIntent", "slots": [] },
-    { "intent": "AMAZON.RepeatIntent", "slots": [] }
+    { "intent": "AMAZON.CancelIntent", "slots": [] }
   ]
 }

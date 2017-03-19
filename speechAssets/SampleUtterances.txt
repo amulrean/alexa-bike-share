@@ -5,12 +5,26 @@ MyStationIntent status
 MyStationIntent my station
 MyStationIntent mine
 
-SearchIntent search
+AMAZON.NextIntent next
+AMAZON.NextIntent next station
+AMAZON.NextIntent next location
 
-AddressSearchIntent {address}
-AdminSearchIntent {admin}
-StateSearchIntent {state}
+AMAZON.PreviousIntent previous
+AMAZON.PreviousIntent previous station
+AMAZON.PreviousIntent previous location
+AMAZON.PreviousIntent go back
 
 AMAZON.StopIntent stop
 AMAZON.StopIntent off
 AMAZON.StopIntent shut up
+
+LocationSearchIntent {address}
+LocationSearchIntent {admin}
+LocationSearchIntent search {address}
+LocationSearchIntent search {admin}
+LocationSearchIntent search near {address}
+LocationSearchIntent search near {admin}
+LocationSearchIntent find {address}
+LocationSearchIntent find {admin}
+
+

@@ -1,14 +1,13 @@
 var Alexa = require('alexa-sdk');
 var bikeShare = require('capital-bike-share-js');
-// var _ = require('lodash');
 var geocoder = require('geocoder');
 
 var appId = 'amzn1.ask.skill.ca307c70-126d-4190-b9c7-f44180a0f4af'; //'amzn1.echo-sdk-ams.app.your-skill-id';
 
 
 // bikeShare.getById('167', (err, data) => {
-//   // console.log(data);
-//   // console.log(err);
+//   console.log(data);
+//   console.log(err);
 //
 //   geocoder.geocode("Ballston, VA", (geoErr, geoData) => {
 //         // console.log(geoData);
@@ -18,8 +17,12 @@ var appId = 'amzn1.ask.skill.ca307c70-126d-4190-b9c7-f44180a0f4af'; //'amzn1.ech
 //             longitude: geoData.results[0].geometry.location.lng
 //         };
 //         var response = "";
-//         bikeShare.getByClosest(bikeShareLocation, 5, (err, data) => {
-//             response = getBikeShareResponse(data);
+//         bikeShare.getClosestByDistance(bikeShareLocation, ONEMILEINMETERS, (err, data) => {
+//             console.log(data.length);
+//             nearByStations = data;
+//             nearByStationIndex = 0;
+//
+//             response = getCurrentBikeShareStationResponse();
 //
 //             console.log(response);
 //         });
@@ -36,49 +39,139 @@ exports.handler = function (event, context, callback) {
     var alexa = Alexa.handler(event, context);
     alexa.appId = appId;
     // alexa.dynamoDBTableName = 'alexaBikeShare';
-    alexa.registerHandlers(newSessionHandlers, myStationHandlers, searchHandler, addressSearchHandler, stateSearchHandler);
+    alexa.registerHandlers(newSessionHandlers, locationListHandler);
     alexa.execute();
 };
 
 var states = {
-    SEARCHMODE: '_SEARCHMODE',
-    ADRESSMODE: '_ADRESSMODE',
-    STATEMODE: '_STATEMODE',
-    CITYMODE: '_CITYMODE',
-    MYSTATION: '_MYSTATION'
+    LISTMODE: '_LISTMODE',
 };
 
-var welcomeMessage = "Capital Bike Share Info. Say Search for location search or my station status.";
+var ONEMILEINMETERS = 1609.34;
 
-var welcomeRepromt = "Search for Stations or My Station Status";
+var currentLocation;
 
-var searchMessage = "What address or location would you like to search?";
+var nearByStations = [];
+var nearByStationIndex = 0;
 
-var searchRepromt = "Try saying Arlington Virginia";
+var welcomeMessage = "Capital Bike Share Info. Say a location or address to find station status for the area.";
+
+var welcomeRepromt = "Try saying Clarendon Virginia or 1600 Pennsylvania Ave, Washington DC";
+
+var locationSearchError = "I didn't understand that location.";
+
+var locationToFarError = "There are no bike share locations within 1 mile of that location";
+
+var nextOrPreviousMessage = "To hear more stations say next, previous or repeat.";
 
 var goodbyeMessage = "OK, have a good ride.";
 
-var HelpMessage = "Here are some things you can say: Search for stations. My station status.  What would you like to do?";
+var HelpMessage = "Here are some things you can say: A location or address like Clarendon Virginia or 1600 Pennsylvania Ave, Washington DC. What would you like to do?";
 
 
 var newSessionHandlers = {
     'LaunchRequest': function () {
-        console.log('New Launch Request');
-        output = welcomeMessage;
         this.emit(':ask', welcomeMessage, welcomeRepromt);
     },
     'MyStationIntent': function () {
-        console.log('New My Station');
-        this.handler.state = states.MYSTATION;
-        this.emitWithState('MyStationIntent');
+        bikeShare.getById('167', (err, data) => {
+            nearByStations = data;
+            nearByStationIndex = 0;
+            var response = getCurrentBikeShareStationResponse();
+            setCurrentLocationToBikeShareStation(data[0]);
+
+            this.emit(':tell', response);
+        })
     },
-    'SearchIntent': function () {
-        console.log('New SearchIntent');
-        this.handler.state = states.SEARCHMODE;
-        this.emitWithState('SearchIntent');
+    'LocationSearchIntent': function () {
+        console.log('Address obj: ' + this.event.request.intent.slots.address);
+
+        var searchValue = '';
+        if (this.event.request.intent.slots.address.value) {
+            searchValue = this.event.request.intent.slots.address.value;
+        } else if (this.event.request.intent.slots.admin.value) {
+            searchValue = this.event.request.intent.slots.admin.value;
+        } else {
+            this.emit(':ask', locationSearchError, welcomeRepromt);
+        }
+
+        geocoder.geocode(searchValue, (geoErr, geoData) => {
+
+            var response = "You said: " + searchValue + ". ";
+            response += "Google Geo coder found: " + geoData.results[0].formatted_address + ". ";
+
+            setCurrentLocationToBGeoCoderResult(geoData.results[0]);
+
+            bikeShare.getClosestByDistance(currentLocation, ONEMILEINMETERS, (err, data) => {
+
+                if (data && data.length > 0) {
+                    response += "There are " + data.length + " bike share stations within 1 mile. ";
+
+                    nearByStations = data;
+                    nearByStationIndex = 0;
+
+                    response += "The closest station ";
+                    response += getCurrentBikeShareStationResponse();
+
+                    this.emit(':ask', response, nextOrPreviousMessage);
+
+                } else {
+
+                    response += locationToFarError;
+
+                    this.emit(':ask', response, welcomeRepromt);
+                }
+            });
+        });
+
+    },
+    'AMAZON.NextIntent': function () {
+        if (nearByStations && nearByStations.length > 0) {
+            var response  = "";
+            nearByStationIndex = nearByStationIndex + 1;
+            if (nearByStationIndex === nearByStations.length) {
+                nearByStationIndex = nearByStationIndex - 1;
+                response = "You have reached the end of the stations";
+                this.emit(':ask', response, nextOrPreviousMessage);
+            } else {
+                var verbalIndex = nearByStationIndex + 1;
+                response += "Station " + verbalIndex + " of " + nearByStations.length + " ";
+                response += getCurrentBikeShareStationResponse();
+                this.emit(':ask', response, nextOrPreviousMessage);
+            }
+
+        } else {
+            this.emit(':ask', welcomeMessage, welcomeRepromt);
+        }
+    },
+    'AMAZON.PreviousIntent': function () {
+        if (nearByStations && nearByStations.length > 0) {
+            var response  = "";
+            nearByStationIndex = nearByStationIndex - 1;
+            if (nearByStationIndex < 0) {
+                nearByStationIndex = 0;
+                response = "You are already on the closest station.";
+                this.emit(':ask', response, nextOrPreviousMessage);
+            } else {
+                var verbalIndex = nearByStationIndex + 1;
+                response += "Station " + verbalIndex + " of " + nearByStations.length + " ";
+                response += getCurrentBikeShareStationResponse();
+                this.emit(':ask', response, nextOrPreviousMessage);
+            }
+        } else {
+            this.emit(':ask', welcomeMessage, welcomeRepromt);
+        }
+    },
+    'AMAZON.RepeatIntent': function () {
+        if (nearByStations && nearByStations.length > 0) {
+            var response  = "";
+            response += getCurrentBikeShareStationResponse();
+            this.emit(':ask', response, nextOrPreviousMessage);
+        } else {
+            this.emit(':ask', welcomeMessage, welcomeRepromt);
+        }
     },
     'AMAZON.StopIntent': function () {
-        this.handler.state = '';
         console.log('New Stop');
         this.emit(':tell', goodbyeMessage);
     },
@@ -92,161 +185,26 @@ var newSessionHandlers = {
     },
     'Unhandled': function () {
         console.log('New Unhandled');
-        output = HelpMessage;
-        this.emit(':ask', output, welcomeRepromt);
+        this.emit(':ask', HelpMessage, welcomeRepromt);
     },
 };
 
-var myStationHandlers = Alexa.CreateStateHandler(states.MYSTATION, {
-    'MyStationIntent': function () {
-        bikeShare.getById('167', (err, data) => {
-            var response = getBikeShareResponse(data);
 
-            this.emit(':tell', response);
-        })
-    },
-    'AMAZON.HelpIntent': function () {
-        output = HelpMessage;
-        this.emit(':ask', output, HelpMessage);
-    },
-    'AMAZON.StopIntent': function () {
-        console.log('MyStation Stop');
-        this.handler.state = '';
-        this.emit(':saveState', true);
-        this.emit(':tell', goodbyeMessage);
-    },
-    'AMAZON.RepeatIntent': function () {
-        this.emit(':ask', output, HelpMessage);
-    },
-    'AMAZON.CancelIntent': function () {
-        // Use this function to clear up and save any data needed between sessions
-        this.emit(":tell", goodbyeMessage);
-    },
-    'SessionEndedRequest': function () {
-        // Use this function to clear up and save any data needed between sessions
-    },
-    'Unhandled': function () {
-        console.log('My Station Unhandled');
-        this.handler.state = '';
-        output = HelpMessage;
-        this.emit(':ask', output, welcomeRepromt);
+function setCurrentLocationToBikeShareStation(bikeShareResult) {
+    currentLocation = {
+        latitude: bikeShareResult.lat,
+        longitude: bikeShareResult.lng
     }
-});
+}
 
-var searchHandler = Alexa.CreateStateHandler(states.SEARCHMODE, {
-    'SearchIntent': function () {
-        console.log('Search Search Intent');
-        this.handler.state = states.ADRESSMODE;
-        this.emit(':ask', searchMessage, searchRepromt);
-    },
-    'AMAZON.HelpIntent': function () {
-        output = HelpSearchMessage;
-        this.emit(':ask', output, HelpMessage);
-    },
-    'AMAZON.StopIntent': function () {
-        this.handler.state = undefined;
-        this.emit(':tell', goodbyeMessage);
-    },
-    'AMAZON.RepeatIntent': function () {
-        this.emit(':ask', output, HelpMessage);
-    },
-    'AMAZON.CancelIntent': function () {
-        // Use this function to clear up and save any data needed between sessions
-        this.emit(":tell", goodbyeMessage);
-    },
-    'SessionEndedRequest': function () {
-        // Use this function to clear up and save any data needed between sessions
-    },
-    'Unhandled': function () {
-        output = HelpMessage;
-        this.emit(':ask', output, welcomeRepromt);
+function setCurrentLocationToBGeoCoderResult(geoCoderResult) {
+    currentLocation = {
+        latitude: geoCoderResult.geometry.location.lat,
+        longitude: geoCoderResult.geometry.location.lng
     }
-});
+}
 
-var addressSearchHandler = Alexa.CreateStateHandler(states.ADRESSMODE, {
-    'AddressSearchIntent': function () {
-        console.log('Address obj: ' + this.event.request.intent.slots.address);
-
-        var addressSlotValue = this.event.request.intent.slots.address.value;
-
-        geocoder.geocode(addressSlotValue, (geoErr, geoData) => {
-            console.log(geoData);
-            console.log(geoData.results[0].geometry.location);
-
-            response = "You said an address: " + addressSlotValue + ". ";
-            response += "Geocoder found: " + geoData.results[0].formatted_address + ". ";
-
-            var bikeShareLocation = {
-                latitude: geoData.results[0].geometry.location.lat,
-                longitude: geoData.results[0].geometry.location.lng
-            };
-            bikeShare.getByClosest(bikeShareLocation, 5, (err, data) => {
-                console.log('response before: ' + response);
-                response += getBikeShareResponse(data);
-
-                this.emit(':tell', response);
-            });
-        });
-
-    },
-    'AdminSearchIntent': function () {
-        console.log('Admin obj: ' + this.event.request.intent.slots.admin);
-
-        var adminSlotValue = this.event.request.intent.slots.admin.value;
-
-        geocoder.geocode(adminSlotValue, (geoErr, geoData) => {
-            console.log(geoData);
-            console.log(geoData.results[0].geometry.location);
-
-            response = "You said an administration area: " + adminSlotValue + ". ";
-            response += "Geocoder found: " + geoData.results[0].formatted_address + ". ";
-
-            var bikeShareLocation = {
-                latitude: geoData.results[0].geometry.location.lat,
-                longitude: geoData.results[0].geometry.location.lng
-            };
-            bikeShare.getByClosest(bikeShareLocation, 5, (err, data) => {
-                console.log('response before: ' + response);
-                response += getBikeShareResponse(data);
-
-                this.emit(':tell', response);
-            });
-        });
-
-    },
-    'AMAZON.HelpIntent': function () {
-        output = HelpMessage;
-        this.emit(':ask', output, HelpMessage);
-    },
-    'AMAZON.StopIntent': function () {
-        console.log('State: ' + this.handler.state);
-        this.handler.state = '';
-        console.log('State: ' + this.handler.state);
-        this.emit(':saveState', true);
-        console.log('State: ' + this.handler.state);
-        this.emit(':tell', goodbyeMessage);
-        console.log('State: ' + this.handler.state);
-    },
-    'AMAZON.RepeatIntent': function () {
-        this.emit(':ask', output, HelpMessage);
-    },
-    'AMAZON.CancelIntent': function () {
-        // Use this function to clear up and save any data needed between sessions
-        this.emit(":tell", goodbyeMessage);
-    },
-    'SessionEndedRequest': function () {
-        // Use this function to clear up and save any data needed between sessions
-        console.log('Seassion Ended Intent');
-        this.handler.state = '';
-        this.emit(':saveState', true);
-    },
-    'Unhandled': function () {
-        output = HelpMessage;
-        this.emit(':ask', output, welcomeRepromt);
-    }
-});
-
-var stateSearchHandler = Alexa.CreateStateHandler(states.STATEMODE, {
+var locationListHandler = Alexa.CreateStateHandler(states.STATIONMODE, {
     'StateSearchIntent': function () {
         console.log('State Search Intent');
         var stateSlotValue = this.event.request.intent.slots.state.value;
@@ -285,11 +243,9 @@ var stateSearchHandler = Alexa.CreateStateHandler(states.STATEMODE, {
     }
 });
 
-function getBikeShareResponse(bikeShareData) {
+function getCurrentBikeShareStationResponse() {
 
-    var response = '';
-
-    var filledResponse = bikeShareData.reduce(addBikeStationResponse, response);
+    var filledResponse = getBikeStationResponse(nearByStations[nearByStationIndex]);
 
     filledResponse = filledResponse.replace(/&/g, "and");
     filledResponse = filledResponse.replace(/\//g, "");
@@ -297,6 +253,6 @@ function getBikeShareResponse(bikeShareData) {
     return filledResponse;
 }
 
-function addBikeStationResponse(currentResponse, stationData) {
-    return currentResponse += stationData.name[0] + ' has ' + stationData.nbBikes[0] + ' bikes available and ' + stationData.nbEmptyDocks[0] + ' empty docks. ';
+function getBikeStationResponse(stationData) {
+    return stationData.name[0] + ' has ' + stationData.nbBikes[0] + ' bikes available and ' + stationData.nbEmptyDocks[0] + ' empty docks. ';
 }
