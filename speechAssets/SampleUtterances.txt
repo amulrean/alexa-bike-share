@@ -1,13 +1,7 @@
-MyStationIntent station like
-MyStationIntent whats my stations status
-MyStationIntent station status
-MyStationIntent status
-MyStationIntent my station
-MyStationIntent mine
-
 AMAZON.NextIntent next
 AMAZON.NextIntent next station
 AMAZON.NextIntent next location
+AMAZON.NextIntent next closest
 
 AMAZON.PreviousIntent previous
 AMAZON.PreviousIntent previous station
@@ -23,5 +17,9 @@ LocationSearchIntent near {admin}
 LocationSearchIntent search {admin}
 LocationSearchIntent search near {admin}
 LocationSearchIntent find {admin}
-
-
+LocationSearchIntent whats available at {admin}
+LocationSearchIntent whats available near {admin}
+LocationSearchIntent station {admin}
+LocationSearchIntent station by {admin}
+LocationSearchIntent next to {admin}
+LocationSearchIntent bikes available at {admin}

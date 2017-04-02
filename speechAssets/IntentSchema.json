@@ -1,7 +1,5 @@
 {
   "intents": [
-    { "intent": "MyStationIntent", "slots": [] },
-    { "intent": "SearchIntent", "slots": [] },
     { "intent": "LocationSearchIntent", "slots": [{ "name": "admin", "type": "AMAZON.AdministrativeArea" }] },
     { "intent": "AMAZON.NextIntent", "slots": [] },
     { "intent": "AMAZON.PreviousIntent", "slots": [] },

@@ -1,42 +1,12 @@
 var Alexa = require('alexa-sdk');
 var bikeShare = require('capital-bike-share-js');
 var geocoder = require('geocoder');
+var _ = require('lodash');
+var geoDistance = require('node-geo-distance');
 
 var appId = 'amzn1.ask.skill.ca307c70-126d-4190-b9c7-f44180a0f4af'; //'amzn1.echo-sdk-ams.app.your-skill-id';
 
-
-// bikeShare.getById('167', (err, data) => {
-//   console.log(data);
-//   console.log(err);
-//
-//   geocoder.geocode("clarendon metro", (geoErr, geoData) => {
-//         console.log(geoData);
-//         // console.log(geoData.results[0].geometry.location);
-//       var localityLongName = getLocalityLongName(geoData.results[0]);
-//       console.log(localityLongName);
-//         var bikeShareLocation = {
-//             latitude: geoData.results[0].geometry.location.lat,
-//             longitude: geoData.results[0].geometry.location.lng
-//         };
-//         var response = "";
-//         bikeShare.getClosestByDistance(bikeShareLocation, ONEMILEINMETERS, (err, data) => {
-//             console.log(data.length);
-//             nearByStations = data;
-//             nearByStationIndex = 0;
-//
-//             response = getCurrentBikeShareStationResponse();
-//
-//             console.log(response);
-//         });
-//     });
-//
-//   // var response = data[0].name[0] + ' has ' + data[0].nbBikes[0] + ' bikes available and ' + data[0].nbEmptyDocks[0] + ' empty docks.';
-//   //
-//   //   response = _.replace(response, '&', 'and');
-//   //
-//   //   console.log(response);
-// });
-
+// Alexa Handler
 exports.handler = function (event, context, callback) {
     var alexa = Alexa.handler(event, context);
     alexa.appId = appId;
@@ -45,26 +15,35 @@ exports.handler = function (event, context, callback) {
     alexa.execute();
 };
 
-var states = {
 
-};
-
+// var DCBOUNDS = {
+//     "northeast" : {
+//       "lat" : 39.2,
+//       "lng" : -77.3
+//    },
+//    "southwest" : {
+//       "lat" : 38.76,
+//       "lng" : -76.84
+//    }
+// };
 var ONEMILEINMETERS = 1609.34;
 
-var currentLocation;
+var cachedBikeShareResults;
+
+var currentGeoCoderResult;
 
 var nearByStations = [];
 var nearByStationIndex = 0;
 
-var welcomeMessage = "Capital Bike Share Info. Say search and then a location or address to find station status for bike share docks near the location. Try Saying: search Clarendon Metro or near Georgetown Cupcakes.";
+var welcomeMessage = "Capital Bike Share Info. Say search and then a location or address to find station status for bike share docks near the location. Try Saying: search Clarendon Metro or find station near 1600 Pennsylvania Ave.";
 
-var welcomeRepromt = "Try saying Clarendon Virginia or 1600 Pennsylvania Ave, Washington DC";
+var welcomeRepromt = "Try saying Search Clarendon Virginia or Search 1600 Pennsylvania Ave, Washington DC";
 
 var locationSearchError = "I didn't understand that location.";
 
-var locationToFarError = "There are no bike share locations within 1 mile of that location";
+var locationToFarError = "There are no bike share locations within 1 mile of";
 
-var nextOrPreviousMessage = "To hear information about other bike share stations in the area say next, previous or repeat.";
+var nextOrPreviousMessage = "To hear information about other bike share stations in the area say next, previous, repeat or more information.";
 
 var goodbyeMessage = "OK, have a good ride.";
 
@@ -75,61 +54,37 @@ var newSessionHandlers = {
     'LaunchRequest': function () {
         this.emit(':ask', welcomeMessage, welcomeRepromt);
     },
-    'MyStationIntent': function () {
-        bikeShare.getById('167', (err, data) => {
-            nearByStations = data;
-            nearByStationIndex = 0;
-            var response = getCurrentBikeShareStationResponse();
-            setCurrentLocationToBikeShareStation(data[0]);
-
-            this.emit(':tell', response);
-        })
-    },
     'LocationSearchIntent': function () {
+        var topDate = +new Date();
 
-        var searchValue = '';
-        if (this.event.request.intent.slots.admin.value) {
-            searchValue = this.event.request.intent.slots.admin.value;
-        } else {
+        var searchValue = _.get(this, 'event.request.intent.slots.admin.value', undefined);
+
+        if (searchValue === undefined) {
             this.emit(':ask', locationSearchError, welcomeRepromt);
-        }
+        } else {
+            var geoCoderOptions = {
+                // bounds: DCBOUNDS
+            };
 
-        geocoder.geocode(searchValue, (geoErr, geoData) => {
+            geocoder.geocode(searchValue, (geoErr, geoData) => {
 
-            // var response = "You said: " + searchValue + ". ";
-            // response += "Google Geo coder found: " + geoData.results[0].formatted_address + ". ";
+                var geoCoderResults = geoData.results;
+                if (cachedBikeShareResults === undefined) {
+                    bikeShare.getAll((err, data) => {
+                        cachedBikeShareResults = data;
 
-            var localityName = getLocalityLongName(geoData.results[0]);
-
-            setCurrentLocationToBGeoCoderResult(geoData.results[0]);
-
-            bikeShare.getClosestByDistance(currentLocation, ONEMILEINMETERS, (err, data) => {
-
-                if (data && data.length > 0) {
-
-                    nearByStations = data;
-                    nearByStationIndex = 0;
-
-                    var response = "The closest station ";
-                    response += getCurrentBikeShareStationResponse();
-                    response += "There are " + data.length + " bike share stations within 1 mile of your searched location in " + localityName + ". ";
-                    response += "Say next station to continue or search for another location.";
-
-                    this.emit(':ask', response, nextOrPreviousMessage);
-
+                        processGeoCoderResults(this, geoCoderResults, searchValue);
+                    });
                 } else {
-
-                    response += locationToFarError;
-
-                    this.emit(':ask', response, welcomeRepromt);
+                    processGeoCoderResults(this, geoCoderResults, searchValue);
                 }
-            });
-        });
+            }, geoCoderOptions);
+        }
 
     },
     'AMAZON.NextIntent': function () {
         if (nearByStations && nearByStations.length > 0) {
-            var response  = "";
+            var response = "";
             nearByStationIndex = nearByStationIndex + 1;
             if (nearByStationIndex === nearByStations.length) {
                 nearByStationIndex = nearByStationIndex - 1;
@@ -148,7 +103,7 @@ var newSessionHandlers = {
     },
     'AMAZON.PreviousIntent': function () {
         if (nearByStations && nearByStations.length > 0) {
-            var response  = "";
+            var response = "";
             nearByStationIndex = nearByStationIndex - 1;
             if (nearByStationIndex < 0) {
                 nearByStationIndex = 0;
@@ -166,7 +121,7 @@ var newSessionHandlers = {
     },
     'AMAZON.RepeatIntent': function () {
         if (nearByStations && nearByStations.length > 0) {
-            var response  = "";
+            var response = "";
             response += getCurrentBikeShareStationResponse();
             this.emit(':ask', response, nextOrPreviousMessage);
         } else {
@@ -174,7 +129,6 @@ var newSessionHandlers = {
         }
     },
     'AMAZON.StopIntent': function () {
-        console.log('New Stop');
         this.emit(':tell', goodbyeMessage);
     },
     'AMAZON.CancelIntent': function () {
@@ -186,21 +140,12 @@ var newSessionHandlers = {
         this.emit('AMAZON.StopIntent');
     },
     'Unhandled': function () {
-        console.log('New Unhandled');
         this.emit(':ask', HelpMessage, welcomeRepromt);
     },
 };
 
-
-function setCurrentLocationToBikeShareStation(bikeShareResult) {
-    currentLocation = {
-        latitude: bikeShareResult.lat,
-        longitude: bikeShareResult.lng
-    }
-}
-
-function setCurrentLocationToBGeoCoderResult(geoCoderResult) {
-    currentLocation = {
+function getLocationObjectFromGeoCoderResult(geoCoderResult) {
+    return {
         latitude: geoCoderResult.geometry.location.lat,
         longitude: geoCoderResult.geometry.location.lng
     }
@@ -223,13 +168,70 @@ function getBikeStationResponse(stationData) {
 function getLocalityLongName(geoCoderResult) {
     var localityRecord = geoCoderResult.address_components.find(function (addressComponent) {
 
-                return addressComponent &&
-                    addressComponent['types'] &&
-                    addressComponent.types.indexOf('locality') != -1;
-            });
+        return addressComponent &&
+            addressComponent['types'] &&
+            addressComponent.types.indexOf('locality') != -1;
+    });
     if (localityRecord) {
         return localityRecord.long_name;
     }
     return '';
 
+}
+
+function getStationsWithinDistance(location, distanceInMeters) {
+
+    var filtered;
+
+    if (cachedBikeShareResults) {
+        filtered = cachedBikeShareResults.map(function (el) {
+            var coordinates = {latitude: parseFloat(el.lat[0]), longitude: parseFloat(el.long[0])}
+            el.distance = geoDistance.vincentySync(coordinates, location);
+            return el;
+        }).filter(function (value) {
+            return value.distance < distanceInMeters;
+        }).sort(function (a, b) {
+            return a.distance - b.distance;
+        });
+    }
+
+    return filtered;
+}
+
+// Loop through all geoCoder Results and find the first one that has bike share locations.
+function setNearByStations(geoCoderResults, distanceInMeters) {
+
+    nearByStations = [];
+    for (var resultKey in geoCoderResults) {
+        var result = geoCoderResults[resultKey];
+        var resultLocation = getLocationObjectFromGeoCoderResult(result);
+        var closeStations = getStationsWithinDistance(resultLocation, distanceInMeters);
+        if (closeStations.length > 0) {
+            nearByStations = closeStations;
+            currentGeoCoderResult = result;
+            return;
+        }
+    }
+}
+
+function processGeoCoderResults(alexa, geoCoderResults, searchValue) {
+
+    setNearByStations(geoCoderResults, ONEMILEINMETERS);
+
+    if (nearByStations && nearByStations.length > 0) {
+
+        nearByStationIndex = 0;
+
+        var localityName = getLocalityLongName(currentGeoCoderResult);
+        var response = "The closest station ";
+        response += getCurrentBikeShareStationResponse();
+        // response += "There are " + nearByStations.length + " bike share stations within 1 mile of your searched location in " + localityName + ". ";
+        response += "Say next station, more information or search for another location.";
+
+        alexa.emit(':ask', response, nextOrPreviousMessage);
+
+    } else {
+        var response = locationToFarError + ' ' + searchValue;
+        alexa.emit(':ask', response, welcomeRepromt);
+    }
 }
