@@ -16,7 +16,7 @@
     "alexa-sdk": "^1.0.7",
     "capital-bike-share-js": "^1.2.0",
     "geocoder": "^0.2.2",
-    "lodash": "^4.17.4",
+    "lodash": "^4.17.19",
     "node-geo-distance": "^1.1.0"
   }
 }
